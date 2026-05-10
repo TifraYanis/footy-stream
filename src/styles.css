@@ -294,15 +294,15 @@ img {
 
 .dashboard {
   display: grid;
-  grid-template-columns: minmax(300px, 390px) minmax(420px, 1fr) minmax(280px, 330px);
+  grid-template-columns: minmax(300px, 390px) minmax(0, 1fr);
   gap: 14px;
   align-items: start;
 }
 
 .match-column,
-.center-column,
-.right-column {
+.center-column {
   display: grid;
+  min-width: 0;
   gap: 14px;
 }
 
@@ -315,6 +315,7 @@ img {
 
 .panel,
 .page-panel {
+  min-width: 0;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--surface) 92%, transparent);
@@ -642,8 +643,7 @@ img {
 }
 
 .stats-side {
-  position: sticky;
-  top: 22px;
+  position: static;
 }
 
 .possession-ring {
@@ -1085,14 +1085,6 @@ img {
 @media (max-width: 1280px) {
   .dashboard {
     grid-template-columns: minmax(300px, 370px) minmax(0, 1fr);
-  }
-
-  .right-column {
-    grid-column: 1 / -1;
-  }
-
-  .stats-side {
-    position: static;
   }
 
   .bottom-grid {

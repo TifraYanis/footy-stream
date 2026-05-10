@@ -379,11 +379,8 @@ function DashboardView({
           match={selectedMatch}
           stats={statsQuery.data ?? undefined}
         />
-      </section>
-
-      <aside className="right-column">
         <SideStatsPanel match={selectedMatch} stats={statsQuery.data ?? undefined} />
-      </aside>
+      </section>
 
       <section className="bottom-grid">
         <InfoPanel icon={Globe2} title="Sports">
