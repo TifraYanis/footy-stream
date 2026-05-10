@@ -51,10 +51,11 @@ import {
   useTopTeamsQuery,
 } from "./hooks/useFooty";
 import {
+  TIMEZONE_LABEL,
   compareMatches,
-  formatKickoff,
   formatKickoffTime,
   getPhase,
+  matchClockLabel,
   phaseLabel,
   publishedAgo,
   scoreFor,
@@ -91,12 +92,7 @@ const filters: { key: MatchFilter; label: string; icon: IconComponent }[] = [
 
 const navItems: { to: string; label: string; icon: IconComponent }[] = [
   { to: "/", label: "Accueil", icon: Home },
-  { to: "/", label: "En direct", icon: Radio },
-  { to: "/", label: "A venir", icon: Calendar },
-  { to: "/", label: "Termines", icon: CheckCircle2 },
   { to: "/sports", label: "Sports", icon: Globe2 },
-  { to: "/leagues", label: "Top ligues", icon: Trophy },
-  { to: "/teams", label: "Equipes", icon: Users },
   { to: "/news", label: "News", icon: Newspaper },
   { to: "/settings", label: "Parametres", icon: Settings },
 ];
@@ -225,28 +221,14 @@ function AppShell({
         </div>
 
         <nav className="side-nav" aria-label="Navigation principale">
-          {navItems.map((item, index) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
-            const to = index > 0 && index < 4 ? "/" : item.to;
             return (
               <NavLink
-            className={({ isActive }: { isActive: boolean }) =>
-              clsx("side-link", isActive && to !== "/" && "active")
-            }
-                end={to === "/"}
-                key={`${item.label}-${index}`}
-                to={to}
-                onClick={() => {
-                  if (index === 1) {
-                    setFilter("live");
-                  }
-                  if (index === 2) {
-                    setFilter("upcoming");
-                  }
-                  if (index === 3) {
-                    setFilter("finished");
-                  }
-                }}
+                className={({ isActive }: { isActive: boolean }) => clsx("side-link", isActive && "active")}
+                end={item.to === "/"}
+                key={item.label}
+                to={item.to}
               >
                 <Icon size={17} />
                 <span>{item.label}</span>
@@ -322,6 +304,7 @@ function AppShell({
               </button>
             );
           })}
+          <span className="timezone-pill">{TIMEZONE_LABEL}</span>
         </section>
 
         {children}
@@ -346,10 +329,11 @@ function DashboardView({
   filter,
   date,
   searchTerm,
+  setSearchTerm,
   selectedMatchId,
 }: DashboardViewProps) {
   const navigate = useNavigate();
-  const matchesQuery = useMatchesQuery(selectedSport, date);
+  const matchesQuery = useMatchesQuery(selectedSport, date, filter);
   const detailsQuery = useMatchDetailsQuery(selectedMatchId);
   const topLeaguesQuery = useTopLeaguesQuery(selectedSport);
   const topTeamsQuery = useTopTeamsQuery(selectedSport);
@@ -371,6 +355,10 @@ function DashboardView({
   }, [detailsQuery.data, matches, selectedMatchId]);
 
   const statsQuery = useMatchStatsQuery(selectedMatch?.matchId);
+  const applyQuickSearch = (value: string) => {
+    setSearchTerm(value);
+    navigate("/");
+  };
 
   return (
     <div className="dashboard">
@@ -404,11 +392,11 @@ function DashboardView({
             renderIcon={(index) => ["Football", "Basketball", "Hockey", "Tennis", "Baseball"][index]?.slice(0, 2)}
           />
         </InfoPanel>
-        <InfoPanel icon={Trophy} title="Top ligues">
-          <MiniList items={(topLeaguesQuery.data ?? []).slice(0, 6)} />
+        <InfoPanel icon={Trophy} title="Raccourcis ligues">
+          <MiniList items={(topLeaguesQuery.data ?? []).slice(0, 6)} onSelect={applyQuickSearch} />
         </InfoPanel>
-        <InfoPanel icon={Users} title="Equipes populaires">
-          <MiniList items={(topTeamsQuery.data ?? []).slice(0, 6).map(toTitleCase)} />
+        <InfoPanel icon={Users} title="Raccourcis equipes">
+          <MiniList items={(topTeamsQuery.data ?? []).slice(0, 6).map(toTitleCase)} onSelect={applyQuickSearch} />
         </InfoPanel>
         <InfoPanel icon={Newspaper} title="News">
           <NewsMiniList articles={(newsQuery.data ?? []).slice(0, 3)} />
@@ -468,7 +456,7 @@ type MatchListPanelProps = {
 function MatchListPanel({ matches, selectedMatchId, isLoading, onSelect }: MatchListPanelProps) {
   return (
     <section className="panel match-list-panel">
-      <PanelHeading icon={Radio} title="En direct" meta={`${matches.length} matchs`} />
+      <PanelHeading icon={Radio} title="Matchs" meta={`${matches.length} matchs`} />
       <div className="match-list">
         {isLoading ? (
           <SkeletonRows count={7} />
@@ -510,7 +498,7 @@ function UpcomingPanel({ matches, onSelect }: UpcomingPanelProps) {
 
   return (
     <section className="panel compact-panel">
-      <PanelHeading icon={Clock} title="A venir" meta={`${upcoming.length}`} />
+      <PanelHeading icon={Clock} title="A venir" meta={TIMEZONE_LABEL} />
       <div className="stack">
         {upcoming.length ? (
           upcoming.map((match) => (
@@ -564,7 +552,7 @@ function MatchStage({ match, stats }: MatchStageProps) {
           <strong>
             {score.home} - {score.away}
           </strong>
-          <small>{match.currentMinute || formatKickoff(match)}</small>
+          <small>{matchClockLabel(match)}</small>
         </div>
         <TeamIdentity team={match.teams?.away} side="away" />
       </div>
@@ -755,7 +743,7 @@ function SideStatsPanel({ match, stats }: { match?: Match; stats?: MatchStats | 
             <h3>Resume</h3>
             <MetricMini label="Score" home={String(score.home)} away={String(score.away)} />
             <MetricMini label="Flux" home={String(streamCount(match))} away="sources" />
-            <MetricMini label="Minute" home={match.currentMinute || "-"} away={formatKickoffTime(match)} />
+            <MetricMini label={TIMEZONE_LABEL} home={matchClockLabel(match)} away={formatKickoffTime(match)} />
           </div>
 
           <div className="stat-section">
@@ -923,14 +911,22 @@ function InfoPanel({ icon, title, children }: { icon: IconComponent; title: stri
   );
 }
 
-function MiniList({ items, renderIcon }: { items: string[]; renderIcon?: (index: number) => string | undefined }) {
+function MiniList({
+  items,
+  renderIcon,
+  onSelect,
+}: {
+  items: string[];
+  renderIcon?: (index: number) => string | undefined;
+  onSelect?: (item: string) => void;
+}) {
   return (
     <div className="mini-list">
       {items.map((item, index) => (
-        <span key={`${item}-${index}`}>
+        <button key={`${item}-${index}`} type="button" onClick={() => onSelect?.(item)} disabled={!onSelect}>
           <b>{renderIcon?.(index) ?? `${index + 1}`}</b>
           {item}
-        </span>
+        </button>
       ))}
     </div>
   );

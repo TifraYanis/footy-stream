@@ -294,10 +294,14 @@ export function getSports() {
   return cachedJson<Sport[]>("/sports", cacheTtl.sports);
 }
 
-export function getMatches(sport: string, date?: string) {
+export function getMatches(sport: string, date?: string, filter?: "all" | "live" | "upcoming" | "finished") {
+  if (filter === "live") {
+    return cachedJson<Match[]>(`/matches/${sport}/live`, cacheTtl.liveMatches);
+  }
+
   const query = date ? `?date=${encodeURIComponent(date)}` : "";
   const path = `/matches/${sport}${query}`;
-  const ttl = sport.includes("live") ? cacheTtl.liveMatches : cacheTtl.matches;
+  const ttl = cacheTtl.matches;
   return cachedJson<Match[]>(path, ttl);
 }
 

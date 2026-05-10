@@ -18,12 +18,16 @@ export function useSportsQuery() {
   });
 }
 
-export function useMatchesQuery(sport: string, date: string) {
+export function useMatchesQuery(
+  sport: string,
+  date: string,
+  filter: "all" | "live" | "upcoming" | "finished",
+) {
   return useQuery({
-    queryKey: ["matches", sport, date],
-    queryFn: () => getMatches(sport, date),
-    staleTime: cacheTtl.matches,
-    refetchInterval: 60 * 1000,
+    queryKey: ["matches", sport, date, filter],
+    queryFn: () => getMatches(sport, date, filter),
+    staleTime: filter === "live" ? cacheTtl.liveMatches : cacheTtl.matches,
+    refetchInterval: filter === "live" ? 25 * 1000 : 60 * 1000,
   });
 }
 

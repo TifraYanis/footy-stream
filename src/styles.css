@@ -271,6 +271,17 @@ img {
   cursor: pointer;
 }
 
+.timezone-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
 .sport-chip.active,
 .filter-chip.active,
 .stream-chip.active,
@@ -787,13 +798,27 @@ img {
   font-weight: 800;
 }
 
-.mini-list span {
+.mini-list button {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   min-width: 0;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--soft);
+  cursor: pointer;
+  text-align: left;
+}
+
+.mini-list button:disabled {
+  cursor: default;
+}
+
+.mini-list button:not(:disabled):hover {
+  color: var(--text);
 }
 
 .mini-list b {

@@ -1,24 +1,40 @@
 import type { Match, StatItem, TeamSide } from "../api/watchfooty";
 
+export const APP_TIME_ZONE = "Europe/Paris";
+export const TIMEZONE_LABEL = "Heure France";
+
+const dateInputFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: APP_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 const dateTimeFormatter = new Intl.DateTimeFormat("fr-FR", {
+  timeZone: APP_TIME_ZONE,
   weekday: "short",
   day: "2-digit",
   month: "short",
   hour: "2-digit",
   minute: "2-digit",
+  timeZoneName: "short",
 });
 
 const timeFormatter = new Intl.DateTimeFormat("fr-FR", {
+  timeZone: APP_TIME_ZONE,
   hour: "2-digit",
   minute: "2-digit",
+  timeZoneName: "short",
 });
 
 export type MatchPhase = "live" | "upcoming" | "finished" | "canceled" | "unknown";
 
 export function todayInputValue() {
-  const now = new Date();
-  const timezoneOffset = now.getTimezoneOffset() * 60 * 1000;
-  return new Date(now.getTime() - timezoneOffset).toISOString().slice(0, 10);
+  const parts = dateInputFormatter.formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value ?? "2026";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
 }
 
 export function matchDate(match?: Pick<Match, "date" | "timestamp">) {
@@ -52,6 +68,27 @@ export function formatKickoff(match?: Pick<Match, "date" | "timestamp">) {
 export function formatKickoffTime(match?: Pick<Match, "date" | "timestamp">) {
   const date = matchDate(match);
   return date ? timeFormatter.format(date) : "--:--";
+}
+
+export function matchClockLabel(match?: Match) {
+  if (!match) {
+    return "";
+  }
+
+  const phase = getPhase(match.status);
+  if (phase === "live" && match.currentMinute) {
+    return match.currentMinute;
+  }
+
+  if (phase === "finished") {
+    return "Termine";
+  }
+
+  if (phase === "canceled") {
+    return "Annule";
+  }
+
+  return formatKickoff(match);
 }
 
 export function getPhase(status?: string): MatchPhase {
