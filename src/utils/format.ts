@@ -27,6 +27,12 @@ const timeFormatter = new Intl.DateTimeFormat("fr-FR", {
   timeZoneName: "short",
 });
 
+const clockFormatter = new Intl.DateTimeFormat("fr-FR", {
+  timeZone: APP_TIME_ZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
 export type MatchPhase = "live" | "upcoming" | "finished" | "canceled" | "unknown";
 
 export function todayInputValue() {
@@ -68,6 +74,11 @@ export function formatKickoff(match?: Pick<Match, "date" | "timestamp">) {
 export function formatKickoffTime(match?: Pick<Match, "date" | "timestamp">) {
   const date = matchDate(match);
   return date ? timeFormatter.format(date) : "--:--";
+}
+
+export function formatKickoffClock(match?: Pick<Match, "date" | "timestamp">) {
+  const date = matchDate(match);
+  return date ? clockFormatter.format(date) : "--:--";
 }
 
 export function matchClockLabel(match?: Match) {

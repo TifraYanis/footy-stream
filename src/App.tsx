@@ -53,6 +53,7 @@ import {
 import {
   TIMEZONE_LABEL,
   compareMatches,
+  formatKickoffClock,
   formatKickoffTime,
   getPhase,
   matchClockLabel,
@@ -450,7 +451,35 @@ type MatchListPanelProps = {
   onSelect: (match: Match) => void;
 };
 
+type MatchLeagueGroup = {
+  league: string;
+  liveCount: number;
+  matches: Match[];
+};
+
+function groupMatchesByLeague(matches: Match[]) {
+  const groups = new Map<string, MatchLeagueGroup>();
+
+  matches.forEach((match) => {
+    const league = leagueLabel(match);
+    const group = groups.get(league) ?? { league, liveCount: 0, matches: [] };
+    group.matches.push(match);
+    if (getPhase(match.status) === "live") {
+      group.liveCount += 1;
+    }
+    groups.set(league, group);
+  });
+
+  return Array.from(groups.values());
+}
+
+function leagueLabel(match: Match) {
+  return match.league?.trim() || toTitleCase(match.sport || "Sport");
+}
+
 function MatchListPanel({ matches, selectedMatchId, isLoading, onSelect }: MatchListPanelProps) {
+  const groups = useMemo(() => groupMatchesByLeague(matches), [matches]);
+
   return (
     <section className="panel match-list-panel">
       <PanelHeading icon={Radio} title="Matchs" meta={`${matches.length} matchs`} />
@@ -458,27 +487,66 @@ function MatchListPanel({ matches, selectedMatchId, isLoading, onSelect }: Match
         {isLoading ? (
           <SkeletonRows count={7} />
         ) : matches.length ? (
-          matches.slice(0, 18).map((match) => (
-            <button
-              className={clsx("match-row", match.matchId === selectedMatchId && "active")}
-              key={match.matchId}
-              type="button"
-              onClick={() => onSelect(match)}
-            >
-              <TeamLogo team={match.teams?.home} compact />
-              <span className="match-row-main">
-                <span className="match-league">{match.league || toTitleCase(match.sport || "Sport")}</span>
-                <span className="match-title">{match.title}</span>
-              </span>
-              <span className="match-score">{scoreLine(match)}</span>
-              <StatusDot match={match} />
-            </button>
+          groups.map((group) => (
+            <section className="league-group" key={group.league}>
+              <div className="league-group-heading">
+                <span>{group.league}</span>
+                <small>{group.liveCount ? `${group.liveCount} en direct` : `${group.matches.length} matchs`}</small>
+              </div>
+              {group.matches.map((match) => (
+                <button
+                  className={clsx("match-row", match.matchId === selectedMatchId && "active")}
+                  key={match.matchId}
+                  type="button"
+                  onClick={() => onSelect(match)}
+                >
+                  <MatchTimeBadge match={match} />
+                  <TeamLogo team={match.teams?.home} compact />
+                  <span className="match-row-main">
+                    <span className="match-title">{match.title}</span>
+                    <span className="match-meta">
+                      <span>{phaseLabel(match.status)}</span>
+                      <span>Debut {formatKickoffClock(match)}</span>
+                      {streamCount(match) ? <span>{streamCount(match)} flux</span> : null}
+                    </span>
+                  </span>
+                  <span className="match-score">{scoreLine(match)}</span>
+                  <StatusDot match={match} />
+                </button>
+              ))}
+            </section>
           ))
         ) : (
           <EmptyState icon={Tv} title="Aucun match" text="Change le sport, la date ou le filtre." />
         )}
       </div>
     </section>
+  );
+}
+
+function MatchTimeBadge({ match }: { match: Match }) {
+  const phase = getPhase(match.status);
+  const kickoff = formatKickoffClock(match);
+  const minute =
+    match.currentMinute?.trim() ||
+    (typeof match.currentMinuteNumber === "number" ? `${match.currentMinuteNumber}'` : "");
+  const primary =
+    phase === "live"
+      ? minute
+        ? `Live ${minute}`
+        : "Live"
+      : phase === "finished"
+        ? "Termine"
+        : phase === "canceled"
+          ? "Annule"
+          : kickoff;
+  const secondary = phase === "upcoming" ? "Debut" : `Debut ${kickoff}`;
+
+  return (
+    <span className={clsx("match-time-badge", phase)} title={`${phaseLabel(match.status)} - ${TIMEZONE_LABEL}: ${kickoff}`}>
+      <strong>{primary}</strong>
+      <small>{secondary}</small>
+    </span>
   );
 }
 
@@ -939,7 +1007,7 @@ function StatusDot({ match }: { match: Match }) {
 function scoreLine(match: Match) {
   const score = scoreFor(match);
   if (getPhase(match.status) === "upcoming") {
-    return formatKickoffTime(match);
+    return formatKickoffClock(match);
   }
   return `${score.home} - ${score.away}`;
 }
