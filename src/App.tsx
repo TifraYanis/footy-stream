@@ -218,7 +218,7 @@ function AppShell({
           <span className="brand-mark">
             <Shield size={22} />
           </span>
-          <span>Footy Stream</span>
+          <span>YanisStream</span>
         </div>
 
         <nav className="side-nav" aria-label="Navigation principale">
@@ -243,7 +243,7 @@ function AppShell({
         <header className="topbar">
           <div>
             <p className="eyebrow">Match center</p>
-            <h1>Footy Stream</h1>
+            <h1>YanisStream</h1>
           </div>
 
           <div className="topbar-actions">
@@ -1217,7 +1217,7 @@ function SettingsView({
             <Shield size={18} />
             <strong>A propos</strong>
           </div>
-          <span className="version-pill">Footy Stream v1.0</span>
+          <span className="version-pill">YanisStream v1.0</span>
         </article>
       </div>
     </section>

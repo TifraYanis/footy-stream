@@ -1,4 +1,4 @@
-# Footy Stream
+# YanisStream
 
 Application personnelle React/Vite pour consulter les matchs sportifs disponibles via l'API publique WatchFooty, lancer les embeds fournis, voir les scores, les statistiques, les tops et les news.
 
