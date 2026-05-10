@@ -624,23 +624,99 @@ function MatchStage({ match, stats }: MatchStageProps) {
 
       <StreamPlayer match={match} stream={activeStream} />
 
-      {streams.length > 1 ? (
-        <div className="stream-strip" aria-label="Sources du stream">
-          {streams.slice(0, 12).map((stream, index) => (
-            <button
-              className={clsx("stream-chip", activeStream?.id === stream.id && "active")}
-              key={stream.id}
-              type="button"
-              onClick={() => setSelectedStreamId(stream.id)}
-            >
-              <Play size={13} />
-              {stream.language || stream.source || `Flux ${index + 1}`}
-              <span>{stream.quality || "SD"}</span>
-            </button>
-          ))}
-        </div>
+      {streams.length ? (
+        <StreamSourcePanel activeStream={activeStream} streams={streams} onSelect={setSelectedStreamId} />
       ) : null}
     </section>
+  );
+}
+
+type StreamGroup = {
+  key: string;
+  label: string;
+  description: string;
+  rank: number;
+  streams: Stream[];
+};
+
+const sourceCatalog: Record<string, Omit<StreamGroup, "key" | "streams">> = {
+  easy: { label: "Easy", description: "Haute qualite, stable", rank: 70 },
+  pro: { label: "Pro", description: "Haute qualite, parfois instable", rank: 60 },
+  prime: { label: "Prime", description: "Haute qualite, parfois instable", rank: 55 },
+  deluxe: { label: "Deluxe", description: "Source alternative HD", rank: 50 },
+  sigma: { label: "Sigma", description: "Source alternative", rank: 45 },
+  regular: { label: "Regular", description: "Flux standard", rank: 35 },
+  other: { label: "Autres", description: "Source non classee", rank: 10 },
+};
+
+function StreamSourcePanel({
+  activeStream,
+  streams,
+  onSelect,
+}: {
+  activeStream?: Stream;
+  streams: Stream[];
+  onSelect: (streamId: string) => void;
+}) {
+  const groups = useMemo(() => groupStreamsBySource(streams), [streams]);
+
+  return (
+    <div className="stream-source-panel" aria-label="Liens de stream">
+      <div className="stream-source-heading">
+        <div>
+          <strong>Liens stream ({streams.length})</strong>
+          <small>Qualite et stabilite estimees</small>
+        </div>
+        <span>{groups.length} categories</span>
+      </div>
+
+      <div className="stream-source-groups">
+        {groups.map((group) => (
+          <section className="stream-source-group" key={group.key}>
+            <div className="stream-group-heading">
+              <span>
+                <strong>{group.label}</strong>
+                <small>
+                  <Tv size={14} />
+                  {group.description}
+                </small>
+              </span>
+              <b>{group.streams.length} flux</b>
+            </div>
+
+            <div className="stream-option-list">
+              {group.streams.map((stream, index) => {
+                const active = activeStream?.id === stream.id;
+                const score = streamStabilityPercent(stream);
+                return (
+                  <button
+                    className={clsx("stream-option", active && "active")}
+                    key={stream.id}
+                    type="button"
+                    onClick={() => onSelect(stream.id)}
+                    title={streamSignalSummary(stream)}
+                  >
+                    <span className="stream-quality-pill">{stream.quality || "SD"}</span>
+                    <span className="stream-option-main">
+                      <strong>{streamSourceName(stream, index)}</strong>
+                      <small>
+                        {stream.language || "Langue inconnue"} - {streamSignalSummary(stream)}
+                      </small>
+                    </span>
+                    <span className={clsx("stream-stability-pill", stabilityTone(score))}>
+                      {score}
+                      <small>/100</small>
+                    </span>
+                    {active ? <span className="stream-current-pill">Actuel</span> : null}
+                    <Play size={14} />
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -661,9 +737,10 @@ function sortStreams(streams: Stream[]) {
 
 function streamScore(stream: Stream) {
   return (
-    qualityScore(stream.quality) * 10_000 +
-    stabilityScore(stream) * 1_000 +
-    languageScore(stream.language) * 100
+    streamStabilityPercent(stream) * 10_000 +
+    qualityScore(stream.quality) * 10 +
+    languageScore(stream.language) * 100 -
+    (streamSourceNumber(stream) ?? 99)
   );
 }
 
@@ -691,17 +768,113 @@ function qualityScore(value?: string) {
   return 0;
 }
 
-function stabilityScore(stream: Stream) {
-  const source = stream.source?.toLowerCase() ?? "";
-  const sourceScore =
-    {
-      deluxe: 5,
-      prime: 4,
-      sigma: 3,
-      regular: 2,
-    }[source] ?? 1;
+function streamStabilityPercent(stream: Stream) {
+  const source = sourceCatalog[streamSourceKey(stream)] ?? sourceCatalog.other;
+  const sourceNumber = streamSourceNumber(stream) ?? 8;
+  const score =
+    source.rank +
+    qualityStabilityBonus(stream.quality) +
+    languageScore(stream.language) * 2 +
+    (stream.isRedirect ? -9 : 5) +
+    (stream.ads ? -7 : 4) -
+    Math.max(0, sourceNumber - 1) * 2;
 
-  return sourceScore + (stream.isRedirect ? 0 : 2) + (stream.ads ? 0 : 1);
+  return Math.max(20, Math.min(98, score));
+}
+
+function qualityStabilityBonus(value?: string) {
+  const normalized = value?.toLowerCase() ?? "";
+  if (normalized.includes("4k") || normalized.includes("uhd")) {
+    return 10;
+  }
+  if (normalized.includes("1080") || normalized.includes("fhd") || normalized.includes("full")) {
+    return 8;
+  }
+  if (normalized.includes("hd") || normalized.includes("720")) {
+    return 6;
+  }
+  if (normalized.includes("sd") || normalized.includes("480")) {
+    return -4;
+  }
+  return 0;
+}
+
+function groupStreamsBySource(streams: Stream[]) {
+  const groups = new Map<string, StreamGroup>();
+
+  streams.forEach((stream) => {
+    const key = streamSourceKey(stream);
+    const catalogItem = sourceCatalog[key] ?? sourceCatalog.other;
+    const group = groups.get(key) ?? { key, ...catalogItem, streams: [] };
+    group.streams.push(stream);
+    groups.set(key, group);
+  });
+
+  return Array.from(groups.values())
+    .map((group) => ({
+      ...group,
+      streams: group.streams.toSorted((left, right) => streamScore(right) - streamScore(left)),
+    }))
+    .toSorted((left, right) => right.rank - left.rank || streamScore(right.streams[0]) - streamScore(left.streams[0]));
+}
+
+function streamSourceKey(stream: Stream) {
+  const explicit = stream.source?.trim().toLowerCase();
+  if (explicit && sourceCatalog[explicit]) {
+    return explicit;
+  }
+
+  const haystack = `${stream.id} ${stream.url}`.toLowerCase();
+  const inferred = Object.keys(sourceCatalog).find((key) =>
+    key !== "other" && (haystack.includes(`-${key}-`) || haystack.includes(`/${key}/`))
+  );
+
+  return inferred ?? "other";
+}
+
+function streamSourceNumber(stream: Stream) {
+  const key = streamSourceKey(stream);
+  const patterns = [
+    new RegExp(`${key}[-/](\\d+)`, "i"),
+    /(?:source|flux)[-/\s]*(\d+)/i,
+    /[-/](\d+)(?:[-/?#]|$)/,
+  ];
+  const value = `${stream.id} ${stream.url}`;
+
+  for (const pattern of patterns) {
+    const match = value.match(pattern);
+    if (match?.[1]) {
+      const parsed = Number.parseInt(match[1], 10);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function streamSourceName(stream: Stream, index: number) {
+  return `Source ${streamSourceNumber(stream) ?? index + 1}`;
+}
+
+function streamSignalSummary(stream: Stream) {
+  const signals = [
+    stream.isRedirect ? "redirect" : "direct",
+    stream.ads ? "ads" : "sans ads",
+    qualityScore(stream.quality) >= 720 ? "HD" : "standard",
+  ];
+  return signals.join(" - ");
+}
+
+function stabilityTone(score: number) {
+  if (score >= 82) {
+    return "high";
+  }
+  if (score >= 64) {
+    return "medium";
+  }
+  return "low";
 }
 
 function languageScore(value?: string) {
