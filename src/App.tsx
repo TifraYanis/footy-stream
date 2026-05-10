@@ -522,7 +522,7 @@ type MatchStageProps = {
 
 function MatchStage({ match, stats }: MatchStageProps) {
   const [selectedStreamId, setSelectedStreamId] = useState<string>();
-  const streams = useMemo(() => match?.streams?.filter((stream) => !stream.nsfw) ?? [], [match?.streams]);
+  const streams = useMemo(() => sortStreams(match?.streams ?? []), [match?.streams]);
   const activeStream = streams.find((stream) => stream.id === selectedStreamId) ?? streams[0];
   const mergedMatch = stats ?? match;
 
@@ -574,6 +574,83 @@ function MatchStage({ match, stats }: MatchStageProps) {
       ) : null}
     </section>
   );
+}
+
+function sortStreams(streams: Stream[]) {
+  return streams
+    .filter((stream) => !stream.nsfw && Boolean(stream.url))
+    .map((stream, index) => ({ stream, index }))
+    .toSorted((left, right) => {
+      const scoreDiff = streamScore(right.stream) - streamScore(left.stream);
+      if (scoreDiff !== 0) {
+        return scoreDiff;
+      }
+
+      return left.index - right.index;
+    })
+    .map((item) => item.stream);
+}
+
+function streamScore(stream: Stream) {
+  return (
+    qualityScore(stream.quality) * 10_000 +
+    stabilityScore(stream) * 1_000 +
+    languageScore(stream.language) * 100
+  );
+}
+
+function qualityScore(value?: string) {
+  const normalized = value?.toLowerCase() ?? "";
+  const numeric = Number.parseInt(normalized, 10);
+
+  if (Number.isFinite(numeric)) {
+    return numeric;
+  }
+
+  if (normalized.includes("4k") || normalized.includes("uhd")) {
+    return 2160;
+  }
+  if (normalized.includes("fhd") || normalized.includes("full")) {
+    return 1080;
+  }
+  if (normalized.includes("hd")) {
+    return 720;
+  }
+  if (normalized.includes("sd")) {
+    return 480;
+  }
+
+  return 0;
+}
+
+function stabilityScore(stream: Stream) {
+  const source = stream.source?.toLowerCase() ?? "";
+  const sourceScore =
+    {
+      deluxe: 5,
+      prime: 4,
+      sigma: 3,
+      regular: 2,
+    }[source] ?? 1;
+
+  return sourceScore + (stream.isRedirect ? 0 : 2) + (stream.ads ? 0 : 1);
+}
+
+function languageScore(value?: string) {
+  const normalized = value?.toLowerCase().replace(/[^a-z0-9-]/g, "") ?? "";
+
+  if (
+    normalized === "english" ||
+    ["en", "gb", "uk", "us", "au", "za"].includes(normalized)
+  ) {
+    return 3;
+  }
+
+  if (normalized === "arabic" || normalized === "arab" || ["ar", "ara", "sa", "mena"].includes(normalized)) {
+    return 2;
+  }
+
+  return 1;
 }
 
 function StreamPlayer({ match, stream }: { match: Match; stream?: Stream }) {
